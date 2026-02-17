@@ -1,0 +1,16 @@
+{
+  "name": "@snackbot-nx/source",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "serve:api": "nx serve snackbot-api",
+    "ingest:api": "nx ingest snackbot-api"
+  },
+  "private": true,
+  "dependencies": {},
+  "devDependencies": {
+    "@nx/js": "22.5.1",
+    "@nx/workspace": "22.5.1",
+    "nx": "22.5.1"
+  }
+}

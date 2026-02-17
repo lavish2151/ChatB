@@ -1,0 +1,23 @@
+{
+  "name": "snackbot-api",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/snackbot-api",
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/snackbot-api",
+        "command": "python -m app.main"
+      }
+    },
+    "ingest": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/snackbot-api",
+        "command": "python -m scripts.ingest_gdocs"
+      }
+    }
+  }
+}
+
