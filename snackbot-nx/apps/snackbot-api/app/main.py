@@ -20,6 +20,11 @@ def create_app() -> Flask:
     app = Flask(__name__)
     CORS(app, resources={r"/api/*": {"origins": s.allowed_origins}})
 
+from flask import redirect
+
+@app.get("/")
+def root():
+    return redirect("/widget")
     @app.get("/health")
     def health():
         return jsonify({"ok": True})
