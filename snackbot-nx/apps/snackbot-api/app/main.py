@@ -4,7 +4,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request, Response, send_from_directory
 from flask_cors import CORS
 
 from .config import load_settings
@@ -68,6 +68,14 @@ def create_app() -> Flask:
     def widget():
         html = _WIDGET_HTML
         return Response(html, mimetype="text/html")
+
+    # Widget script for same-page embed (e.g. Wix custom code): <script src="https://YOUR-API/widget.js"></script>
+    static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+    if os.path.isdir(static_dir):
+
+        @app.get("/widget.js")
+        def serve_widget_js():
+            return send_from_directory(static_dir, "widget.js", mimetype="application/javascript")
 
     return app
 
