@@ -13,13 +13,12 @@ from .rag.rag import answer_question
 def create_app() -> Flask:
     # Load env from Nx workspace root if present
     load_dotenv(dotenv_path=os.path.join(os.getcwd(), "..", "..", ".env"), override=False)
-    load_dotenv(override=False)  # also allow local apps/snackbot-api/.env if you want
+    load_dotenv(override=False)
 
     s = load_settings()
 
     app = Flask(__name__)
     CORS(app, resources={r"/api/*": {"origins": s.allowed_origins}})
-
 
     @app.get("/health")
     def health():
@@ -49,6 +48,7 @@ def create_app() -> Flask:
     return app
 
 
+# 🔹 Your original UI — unchanged
 _WIDGET_HTML = r"""<!doctype html>
 <html>
   <head>
@@ -148,6 +148,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-  
-# changes
-
