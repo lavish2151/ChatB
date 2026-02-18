@@ -1,7 +1,7 @@
 /**
- * Snackbot widget – injects a floating "Chat with us" bubble and chat panel on the same page.
+ * Snackbot widget – adds ONLY a floating button (bottom-right) + chat panel when clicked.
+ * No full page. Paste this script on your site and the button sticks to the bottom-right.
  * Usage: <script src="https://YOUR-API-URL/widget.js"></script>
- * The script URL determines the API base (e.g. https://yourapp.com/widget.js → API at https://yourapp.com).
  */
 (function() {
   'use strict';
@@ -12,7 +12,7 @@
   var css = (
     '.snackbot-root{--sb-bg:#0b1220;--sb-panel:#0f1a2f;--sb-text:#e8eefc;--sb-muted:#a9b6d2;--sb-accent:#7c5cff;--sb-border:#1c2a4a;}' +
     '.snackbot-root *{box-sizing:border-box;}' +
-    '.snackbot-root{position:fixed;bottom:0;right:0;z-index:999999;font-size:15px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}' +
+    '.snackbot-root{position:fixed;bottom:20px;right:20px;z-index:999999;font-size:15px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}' +
     '.snackbot-bubble{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 20px;background:var(--sb-accent);color:#fff;border:none;border-radius:28px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(124,92,255,.4);}' +
     '.snackbot-bubble:hover{filter:brightness(1.08);}' +
     '.snackbot-bubble svg{width:22px;height:22px;flex-shrink:0;}' +
