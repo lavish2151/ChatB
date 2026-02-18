@@ -70,6 +70,8 @@
   root.className = 'snackbot-root';
   root.id = 'snackbot-root';
   root.innerHTML = html;
+  // Keep button fixed to viewport when user scrolls (always append to body)
+  root.style.cssText = 'position:fixed !important;bottom:20px !important;right:20px !important;z-index:2147483647 !important;';
   document.body.appendChild(root);
 
   var bubble = root.querySelector('.snackbot-bubble');
