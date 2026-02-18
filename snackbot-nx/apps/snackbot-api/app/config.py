@@ -34,7 +34,7 @@ def load_settings() -> Settings:
         openai_api_key=_getenv("OPENAI_API_KEY"),
         openai_chat_model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
         openai_embed_model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small"),
-        chroma_persist_dir=os.getenv("CHROMA_PERSIST_DIR", r".\data\chroma"),
+        chroma_persist_dir=os.getenv("CHROMA_PERSIST_DIR", os.path.join(".", "data", "chroma")),
         gdocs_published_urls=urls,
         allowed_origins=origins,
         port=int(os.getenv("PORT", "5000")),

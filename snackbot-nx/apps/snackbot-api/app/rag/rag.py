@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
 from openai import OpenAI
 
 from .vectorstore import query as vs_query
@@ -21,6 +20,7 @@ def answer_question(
     persist_dir: str,
     question: str,
     k: int = 6,
+    history: list[dict[str, str]] | None = None,
 ) -> RagResult:
     hits = vs_query(
         persist_dir=persist_dir,
@@ -68,6 +68,9 @@ def answer_question(
         "CRITICAL RULES:\n"
         "- Answer ONLY using the provided CONTEXT.\n"
         "- Do NOT use outside knowledge. Do NOT guess.\n"
+        "- Use the CONVERSATION HISTORY to understand follow-up questions: "
+        "e.g. 'what about its price?', 'any allergens?', 'how much?' refer to the product just discussed. "
+        "Assume the user is still asking about that same product unless they name another.\n"
         "- If the CONTEXT does not contain the answer, reply exactly:\n"
         "  \"I don't have those details in the product documents I'm using.\"\n"
         "  Then ask 1 short follow-up question to clarify the product.\n"
@@ -75,21 +78,28 @@ def answer_question(
         "- If relevant, mention the product name you are referring to."
     )
 
-    user = (
+    # Build messages: system + conversation history + current turn (context + question)
+    messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+
+    if history:
+        for h in history:
+            role = (h.get("role") or "").strip().lower()
+            content = (h.get("content") or "").strip()
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+
+    current_user = (
         f"CONTEXT:\n{context if context else '(no context found)'}\n\n"
         f"QUESTION:\n{question}\n\n"
         "Return a helpful answer."
     )
+    messages.append({"role": "user", "content": current_user})
 
     resp = client.chat.completions.create(
         model=chat_model,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
+        messages=messages,
         temperature=0.2,
     )
 
     answer = resp.choices[0].message.content or ""
     return RagResult(answer=answer.strip(), sources=sources)
-

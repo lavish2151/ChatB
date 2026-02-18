@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import chromadb
@@ -63,7 +64,7 @@ def query(
     q_emb = embed([q])[0]
 
     col = get_chroma_collection(persist_dir=persist_dir)
-    print("Production collection count:", col.count())
+    logging.getLogger(__name__).debug("Chroma collection count: %s", col.count())
     # Note: Chroma always returns `ids` in the response; `include` is only for
     # additional payload fields. Passing "ids" here raises a ValueError.
     return col.query(query_embeddings=[q_emb], n_results=k, include=["documents", "metadatas", "distances"])
