@@ -60,7 +60,6 @@ def query(
 ) -> dict:
     client = OpenAI(api_key=openai_api_key)
     embed = _openai_embedder(client, embed_model)
-    print("🔎 Production collection count:", col.count())
     q_emb = embed([q])[0]
 
     col = get_chroma_collection(persist_dir=persist_dir)
