@@ -69,13 +69,17 @@ def create_app() -> Flask:
         html = _WIDGET_HTML
         return Response(html, mimetype="text/html")
 
-    # Widget script for same-page embed (e.g. Wix custom code): <script src="https://YOUR-API/widget.js"></script>
+    # Static files: widget.js and embed.html (loader for Wix iframe)
     static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
     if os.path.isdir(static_dir):
 
         @app.get("/widget.js")
         def serve_widget_js():
             return send_from_directory(static_dir, "widget.js", mimetype="application/javascript")
+
+        @app.get("/embed")
+        def serve_embed():
+            return send_from_directory(static_dir, "embed.html", mimetype="text/html")
 
     return app
 
