@@ -9,8 +9,7 @@
 
   function initSnackbot() {
 
-    var script = document.currentScript;
-    var baseUrl = script ? new URL(script.src).origin : "";
+    var baseUrl = "https://chatb-6zjt.onrender.com";
 
     var css = `
     .snackbot-root{
