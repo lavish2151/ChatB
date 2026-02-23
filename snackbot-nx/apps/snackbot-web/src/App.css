@@ -1,0 +1,159 @@
+.page {
+  min-height: 100vh;
+  background: #fafafa;
+  color: #1e293b;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Header */
+.header {
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0f172a;
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+
+.logo:hover {
+  color: #475569;
+}
+
+.nav a {
+  color: #64748b;
+  text-decoration: none;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.nav a:hover {
+  color: #0f172a;
+}
+
+/* Hero */
+.hero {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 2.5rem;
+  text-align: center;
+}
+
+.hero-title {
+  margin: 0;
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.hero-sub {
+  margin: 0.75rem 0 0;
+  font-size: 1.0625rem;
+  color: #64748b;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Main / Products */
+.main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem 4rem;
+}
+
+.section-title {
+  margin: 0 0 1.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.products {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.product-card {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s, transform 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card:hover {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.product-image-wrap {
+  aspect-ratio: 1;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+
+.product-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.product-info {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  justify-content: flex-start;
+}
+
+.product-name {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.product-tagline {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+/* Footer */
+.footer {
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 1.5rem 1.5rem 2rem;
+  text-align: center;
+}
+
+.footer-text {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
+}

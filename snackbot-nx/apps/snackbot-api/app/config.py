@@ -11,11 +11,24 @@ def _getenv(name: str, default: str | None = None) -> str:
     return val
 
 
+def _parse_embed_dimensions(raw: str | None) -> int | None:
+    if not raw or not raw.strip():
+        return None
+    try:
+        n = int(raw.strip())
+        if n <= 0:
+            return None
+        return n
+    except ValueError:
+        return None
+
+
 @dataclass(frozen=True)
 class Settings:
     openai_api_key: str
     openai_chat_model: str
     openai_embed_model: str
+    openai_embed_dimensions: int | None  # None = model default (1536). Use 512 for faster/smaller; requires re-ingest.
     chroma_persist_dir: str
     gdocs_published_urls: list[str]
     allowed_origins: list[str]
@@ -34,6 +47,7 @@ def load_settings() -> Settings:
         openai_api_key=_getenv("OPENAI_API_KEY"),
         openai_chat_model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
         openai_embed_model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small"),
+        openai_embed_dimensions=_parse_embed_dimensions(os.getenv("OPENAI_EMBED_DIMENSIONS")),
         chroma_persist_dir=os.getenv("CHROMA_PERSIST_DIR", os.path.join(".", "data", "chroma")),
         gdocs_published_urls=urls,
         allowed_origins=origins,

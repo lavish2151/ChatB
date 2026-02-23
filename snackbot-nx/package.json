@@ -4,13 +4,20 @@
   "license": "MIT",
   "scripts": {
     "serve:api": "nx serve snackbot-api",
-    "ingest:api": "nx ingest snackbot-api"
+    "ingest:api": "nx ingest snackbot-api",
+    "build:web": "nx build snackbot-web",
+    "serve:web": "nx serve snackbot-web",
+    "start": "nx build snackbot-web && nx serve snackbot-api"
   },
   "private": true,
-  "dependencies": {},
   "devDependencies": {
     "@nx/js": "22.5.1",
+    "@nx/react": "^22.5.1",
     "@nx/workspace": "22.5.1",
     "nx": "22.5.1"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }

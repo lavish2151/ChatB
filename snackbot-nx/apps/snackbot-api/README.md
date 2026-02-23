@@ -32,7 +32,6 @@ From the Nx workspace root:
 npx nx serve snackbot-api
 ```
 
-Then open:
-- `http://localhost:5000/widget` (embeddable UI)
-- `POST http://localhost:5000/api/chat` (JSON API)
+Then open `http://localhost:5000` (after building the web app with `npm run build:web` from repo root).  
+API: `POST http://localhost:5000/api/chat` (JSON).
 
