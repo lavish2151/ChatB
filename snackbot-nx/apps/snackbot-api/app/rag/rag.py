@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from openai import OpenAI
 
 from .vectorstore import query as vs_query
@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class RagResult:
     answer: str
     sources: list[dict]
+    answer_lines: tuple[str, ...] = field(default_factory=tuple)
 
 
 # Product names for query rewriting context
@@ -107,6 +108,26 @@ def _normalize_product_name(text: str) -> str | None:
             return product
     
     return None
+
+
+def _clean_product_response(text: str) -> str:
+    """
+    Option 3: If LLM returns one messy line, clean it so each section/bullet is on its own line.
+    Matches the expected format: blank line between sections, one bullet per line.
+    """
+    if not text or "Availability:" not in text:
+        return text
+    # Sections: put labels on new lines with blank line before (handle both " Availability:" and ". Availability:")
+    t = re.sub(r"[.\s]+Availability:\s*", "\n\nAvailability: ", text)
+    t = re.sub(r"[.\s]+Price:\s*", "\n\nPrice:\n", t)
+    t = re.sub(r"[.\s]+Pack sizes:\s*", "\n\nPack sizes:\n", t)
+    # List bullets: " - 30g" or " - 55g – ₹20" each on own line (space-hyphen-space; en-dash in "30g – ₹10" unchanged)
+    t = re.sub(r"\s+-\s+", "\n- ", t)
+    # Closing line
+    t = re.sub(r"\s+Would you like to buy it\?", "\n\nWould you like to buy it?", t, flags=re.IGNORECASE)
+    # Collapse more than 2 newlines to 2
+    t = re.sub(r"\n{3,}", "\n\n", t)
+    return t.strip()
 
 
 def rewrite_query_for_rag(
@@ -318,7 +339,18 @@ def answer_question(
         "CRITICAL RULES:\n"
         "- When the user asks about a SPECIFIC product (e.g. Kurkure, Lays): Say 'Yes, we have [Product].' Then from CONTEXT: state Stock Availability (In Stock/Out of Stock). Then state Price Range (INR) or pack-wise prices (₹) if present. Optionally mention pack sizes. End with 'Would you like to buy it?'\n"
         "- For 'which products do you have?' list the products above. For 'other than X?' list all except the one(s) mentioned.\n"
-        "- Answer only from CONTEXT using the labels above. Use CONVERSATION HISTORY for follow-ups. Keep answers short; end with a call-to-action when discussing a product."
+        "- Answer only from CONTEXT using the labels above. Use CONVERSATION HISTORY for follow-ups. Keep answers short; end with a call-to-action when discussing a product.\n\n"
+        "OUTPUT FORMAT (strict): Return product replies in this exact structure. Do not combine lines. Each bullet must be on a new line.\n"
+        "Yes, we have {Product Name}.\n\n"
+        "Availability: {In Stock or Out of Stock}\n\n"
+        "Price:\n"
+        "- {Size} – ₹{Price}\n"
+        "(one line per pack/price)\n\n"
+        "Pack sizes:\n"
+        "- {Size}\n"
+        "(one line per size)\n\n"
+        "Would you like to buy it?\n"
+        "Use plain text only (no ** or markdown). Do not combine lines."
     )
 
     # Build messages: system + conversation history + current turn (context + question)
@@ -334,7 +366,7 @@ def answer_question(
     current_user = (
         f"CONTEXT:\n{context if context else '(no context found)'}\n\n"
         f"QUESTION:\n{question}\n\n"
-        "Return a helpful answer."
+        "Return a helpful answer. Do not combine lines. Each bullet must be on a new line."
     )
     messages.append({"role": "user", "content": current_user})
 
@@ -348,5 +380,11 @@ def answer_question(
     logger.warning(f"TIMING llm_call: {time.perf_counter() - t0:.3f}s")
 
     answer = resp.choices[0].message.content or ""
+    raw = answer.strip()
+    # Option 3: Always clean messy one-line output so we get proper line breaks (don't depend on LLM formatting)
+    cleaned = _clean_product_response(raw)
+    answer_lines = tuple((s.strip() or "\u00A0") for s in cleaned.split("\n"))
+    if not answer_lines:
+        answer_lines = (raw,)
     logger.warning(f"TIMING rag_pipeline_total: {time.perf_counter() - t_rag_start:.3f}s")
-    return RagResult(answer=answer.strip(), sources=[])
+    return RagResult(answer=cleaned.strip() or raw, sources=[], answer_lines=answer_lines)

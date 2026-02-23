@@ -157,3 +157,8 @@
   font-size: 0.875rem;
   color: #64748b;
 }
+
+/* Preserve \n line breaks in chatbot messages (plain text, not innerHTML) */
+.bot-message {
+  white-space: pre-line;
+}

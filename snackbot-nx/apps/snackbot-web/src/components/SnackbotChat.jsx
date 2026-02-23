@@ -48,6 +48,7 @@ export default function SnackbotChat({ apiUrl }) {
         prev.filter((m) => !m.typing).concat({
           role: 'bot',
           text: res.ok ? data.answer || '(no answer)' : `Error: ${data.error || 'Request failed'}`,
+          lines: Array.isArray(data.answer_lines) ? data.answer_lines : null,
           sources: data.sources || [],
         })
       );
@@ -105,7 +106,19 @@ export default function SnackbotChat({ apiUrl }) {
                 key={i}
                 className={`snackbot-msg ${m.role} ${m.typing ? 'typing' : ''}`}
               >
-                {m.text}
+                {m.role === 'bot' && !m.typing ? (
+                  <div className="bot-message">
+                    {(() => {
+                      const message = m.text || '';
+                      const formattedMessage = message.replace(/\\n/g, '\n');
+                      return formattedMessage.split('\n').map((line, index) => (
+                        <div key={index}>{line}</div>
+                      ));
+                    })()}
+                  </div>
+                ) : (
+                  m.text
+                )}
                 {m.role === 'bot' && m.sources?.length > 0 && (
                   <div className="snackbot-meta">
                     Sources: {m.sources.map((s) => s.product || s.title || s.url || s.chunk_id).filter(Boolean).join(' · ')}

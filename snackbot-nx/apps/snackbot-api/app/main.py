@@ -48,6 +48,26 @@ def create_app() -> Flask:
     def health():
         return jsonify({"ok": True})
 
+    @app.get("/api/test-newlines")
+    def test_newlines():
+        """Return plain text with newlines. If you see separate lines → newlines work."""
+        text = (
+            "Yes, we have Kurkure.\n\n"
+            "Availability: In Stock\n\n"
+            "Price:\n"
+            "- 30g – ₹10\n"
+            "- 55g – ₹20\n"
+            "- 90g – ₹35\n"
+            "- 115g – ₹50\n\n"
+            "Pack sizes:\n"
+            "- 30g\n"
+            "- 55g\n"
+            "- 90g\n"
+            "- 115g\n\n"
+            "Would you like to buy it?"
+        )
+        return Response(text, mimetype="text/plain")
+
     @app.post("/api/chat")
     def chat():
         data = request.get_json(silent=True) or {}
@@ -88,7 +108,7 @@ def create_app() -> Flask:
             t_request_elapsed = time.perf_counter() - t_request_start
             logger.warning(f"TIMING request_total: {t_request_elapsed:.3f}s")
             logger.warning(f"✅ Answer length: {len(res.answer)} chars")
-            return jsonify({"answer": res.answer})
+            return jsonify({"answer": res.answer, "answer_lines": list(res.answer_lines)})
         except Exception as e:
             logger.exception("❌ Chat request failed")
             return jsonify({"error": "Something went wrong. Please try again."}), 500
