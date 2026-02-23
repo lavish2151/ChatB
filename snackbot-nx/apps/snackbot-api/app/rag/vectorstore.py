@@ -62,21 +62,6 @@ def upsert_documents(
     if not ids:
         return
 
-    key = os.path.abspath(os.path.normpath(persist_dir))
-    if embed_dimensions is not None:
-        # Chroma collections have a fixed dimension; replace collection so new dimension is used
-        _chroma_collection_cache.pop(key, None)
-        chroma_client = chromadb.PersistentClient(
-            path=persist_dir,
-            settings=ChromaSettings(anonymized_telemetry=False),
-        )
-        try:
-            chroma_client.delete_collection(COLLECTION_NAME)
-        except Exception:
-            pass
-        col = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
-        _chroma_collection_cache[key] = col
-
     client = OpenAI(api_key=openai_api_key)
     embed = _openai_embedder(client, embed_model, dimensions=embed_dimensions)
     embeddings = embed(texts)

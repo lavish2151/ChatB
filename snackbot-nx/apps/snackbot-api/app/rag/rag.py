@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass
 from openai import OpenAI
@@ -26,19 +27,66 @@ KNOWN_PRODUCTS = [
     "Parle G",
 ]
 
-# Product name aliases for flexible matching (shortened names users might use)
+# In-memory cache for rewritten queries to avoid repeat LLM calls. Key = (question_lower, context_key), max 150.
+_rewrite_cache: dict[tuple[str, str], str] = {}
+_rewrite_cache_max = 150
+
+# Doc vocabulary: if the query already contains these (case-insensitive), we can skip LLM rewrite for speed
+_DOC_TERMS = (
+    "pack size", "price", "cost", "availability", "in stock", "ingredients",
+    "nutritional", "allergen", "shelf", "storage", "price range", "stock availability",
+)
+
+# Product name aliases for flexible matching (shortened/case-insensitive names users might use)
 PRODUCT_ALIASES = {
+    "lays": "Lays",
+    "kurkure": "Kurkure",
+    "maggi": "Maggi",
     "parle g": "Parle G",
     "parle-g": "Parle G",
     "dairy milk": "Cadbury Dairy Milk Silk",
     "cadbury": "Cadbury Dairy Milk Silk",
     "cadbury silk": "Cadbury Dairy Milk Silk",
+    "cadbury dairy milk silk": "Cadbury Dairy Milk Silk",
     "nescafe": "Nescafe Classic",
     "nescafe classic": "Nescafe Classic",
     "classic": "Nescafe Classic",
     "maggi noodles": "Maggi",
-    "maggi noodles": "Maggi",
 }
+
+
+def _normalize_product_names_in_query(query: str) -> str:
+    """
+    Replace product aliases and lowercase product names in the query with canonical names
+    so retrieval matches chunks that use "Lays", "Kurkure", etc. (e.g. "details of lays" → "details of Lays").
+    """
+    if not query or not query.strip():
+        return query
+    text = query
+    # Build (pattern, canonical) sorted by length descending so longer aliases match first
+    replacements: list[tuple[str, str]] = []
+    for alias, canonical in PRODUCT_ALIASES.items():
+        replacements.append((alias, canonical))
+    for product in KNOWN_PRODUCTS:
+        if product.lower() not in {a for a, _ in replacements}:
+            replacements.append((product.lower(), product))
+    replacements.sort(key=lambda x: -len(x[0]))
+    for alias, canonical in replacements:
+        # Word-boundary replacement, case-insensitive
+        pattern = r"\b" + re.escape(alias) + r"\b"
+        text = re.sub(pattern, canonical, text, flags=re.IGNORECASE)
+    return text
+
+
+def _query_needs_rewrite(question: str) -> bool:
+    """Skip LLM rewrite when the query already has doc vocabulary or is just a product name (saves latency)."""
+    q = question.lower().strip()
+    if any(term in q for term in _DOC_TERMS):
+        return False
+    words = q.split()
+    if len(words) <= 2 and any(p.lower() in q for p in KNOWN_PRODUCTS):
+        return False  # e.g. "Kurkure" or "Kurkure price"
+    return True
 
 
 def _normalize_product_name(text: str) -> str | None:
@@ -69,77 +117,63 @@ def rewrite_query_for_rag(
     history: list[dict[str, str]] | None = None,
 ) -> str:
     """
-    Use LLM to rewrite the user query to be more specific and better suited for RAG retrieval.
-    Uses conversation history to understand context (e.g., "its price" → "Lays price").
+    Use LLM to normalize the user query for RAG: fix typos, map variations to document vocabulary.
+    E.g. "paxcakge sizing", "package dise" -> "pack sizes Available Pack Sizes".
+    No per-keyword logic; one prompt handles all intent and spelling variations.
     """
-    # Extract products from BOTH user and assistant messages (assistant might have mentioned product names)
     recent_product = ""
     if history:
-        # Look at last 6 messages (both user and assistant) to find product mentions
         recent_text = " ".join([h.get("content", "") for h in history[-6:]])
         for product in KNOWN_PRODUCTS:
             if product.lower() in recent_text.lower():
                 recent_product = product
-                break  # Use the first/most recent one found
+                break
 
-    # Expand cost/price related terms for better retrieval
-    cost_synonyms = {
-        "cost": "cost price amount rupees rs",
-        "price": "price cost amount rupees rs",
-        "costs": "cost price amount rupees rs",
-        "pricing": "price cost amount rupees rs",
-        "how much": "cost price amount",
-        "expensive": "cost price amount",
-        "cheap": "cost price amount",
-    }
-    question_lower = question.lower()
-    expanded_question = question
-    for term, expansion in cost_synonyms.items():
-        if term in question_lower:
-            # Add synonyms to help retrieval
-            expanded_question = f"{question} {expansion}"
-            break
-    
-    # If we found a product and the question is vague (uses "its", "their", "this", etc.), directly prepend it
-    vague_indicators = ["its", "their", "this", "that", "the", "it's", "they"]
-    is_vague = any(indicator in question_lower for indicator in vague_indicators)
-    
-    if recent_product and is_vague:
-        # Direct rewrite: "its cost" → "Lays cost price amount"
-        rewritten = f"{recent_product} {expanded_question}"
-        return rewritten
-    
-    # Otherwise, use LLM to rewrite
-    product_context = f" The user was recently asking about: {recent_product}." if recent_product else ""
+    cache_key = (question.strip().lower(), recent_product)
+    if cache_key in _rewrite_cache:
+        return _rewrite_cache[cache_key]
+    if len(_rewrite_cache) >= _rewrite_cache_max:
+        _rewrite_cache.pop(next(iter(_rewrite_cache)))
+
+    product_context = f" Conversation context: user was recently asking about: {recent_product}." if recent_product else ""
 
     prompt = (
-        f"Rewrite this user question to be more specific and better for searching product documents.\n"
-        f"Available products (use EXACTLY these names, nothing else): {', '.join(KNOWN_PRODUCTS)}.\n"
+        "You normalize and rewrite the user's question so it works well for searching product documents. "
+        "Fix misspellings and map their intent to the EXACT terms used in our documents.\n\n"
+        "Document vocabulary (use these phrases in your output when relevant):\n"
+        "- Pack / package / sizing / size / packaging -> include: pack sizes Available Pack Sizes\n"
+        "- Price / cost / how much / rupees / ₹ -> include: Price Range INR\n"
+        "- Available / stock / in stock / availability -> include: Stock Availability In Stock\n"
+        "- Ingredients / content / what's in it -> include: Ingredients\n"
+        "- Nutrition / calories / fat / protein -> include: Nutritional Information\n"
+        "- Allergen / allergy -> include: Allergen Information\n"
+        "- Shelf life / expiry -> include: Shelf Life\n"
+        "- Storage / store -> include: Storage Instructions\n"
+        "- Brand / category -> include: Brand Category\n\n"
+        "Rules:\n"
+        "- Fix typos (e.g. paxcakge->package, dise->size, avaliable->available, ingrediants->ingredients).\n"
+        f"- Use ONLY these product names if a product is mentioned: {', '.join(KNOWN_PRODUCTS)}.\n"
         f"{product_context}\n"
-        f"CRITICAL RULES:\n"
-        f"- Use ONLY these exact product names: {', '.join(KNOWN_PRODUCTS)}\n"
-        f"- DO NOT use old product names like 'Masala Parle-G', 'Nimbu Masala Soda', 'Peanut Chikki', 'Filter Coffee Cold Brew', 'Aam Papad'\n"
-        f"- If you see 'Masala Parle-G' or 'masala parle g', replace it with 'Parle G'\n"
-        f"- If the question is vague (e.g., 'its price', 'what about allergens', 'their difference'), include the product name(s) from context.\n"
-        f"- For cost/price questions, include synonyms: 'cost', 'price', 'amount', 'pricing'.\n"
-        f"- Keep the core intent but make it more searchable with relevant keywords.\n"
-        f"- Remove conversational filler (e.g., 'can you tell me', 'I want to know').\n"
-        f"- Return ONLY the rewritten query, nothing else.\n\n"
-        f"Original question: {expanded_question}\n"
-        f"Rewritten query:"
+        "- If the question is vague (e.g. 'its price', 'what about it'), include the product name from context.\n"
+        "- Output ONLY the rewritten search query, no explanation. Short and keyword-rich is best.\n\n"
+        f"User question: {question}\n"
+        "Rewritten query:"
     )
 
-    resp = client.chat.completions.create(
-        model=query_model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.1,
-        max_tokens=100,
-    )
-    rewritten = (resp.choices[0].message.content or question).strip()
-    # Fallback: if rewrite is empty or too different, use original
-    if not rewritten or len(rewritten) < len(question) * 0.3:
+    try:
+        resp = client.chat.completions.create(
+            model=query_model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_completion_tokens=80,
+        )
+        rewritten = (resp.choices[0].message.content or question).strip()
+        if not rewritten or len(rewritten) < 2:
+            return question
+        _rewrite_cache[cache_key] = rewritten
+        return rewritten
+    except Exception:
         return question
-    return rewritten
 
 
 def answer_question(
@@ -157,20 +191,35 @@ def answer_question(
     t_rag_start = time.perf_counter()
     client = OpenAI(api_key=openai_api_key)
 
-    # Step 1: Simple query expansion for better retrieval
+    # Step 1: Normalize product names (lays -> Lays), then optionally LLM rewrite (skip when query has doc terms or is short product-only)
     t0 = time.perf_counter()
-    search_query = question
+    search_query = _normalize_product_names_in_query(question)
+    if use_query_rewrite and _query_needs_rewrite(question):
+        rewritten = rewrite_query_for_rag(
+            client=client,
+            query_model=chat_model,
+            question=search_query,
+            history=history,
+        )
+        if rewritten and rewritten.strip():
+            search_query = _normalize_product_names_in_query(rewritten.strip())
+            logger.warning(f"Query rewrite: '{question[:50]}...' -> '{search_query[:70]}...'")
+    else:
+        # Lightweight expansion when we skip rewrite (e.g. "Kurkure" or "Kurkure price") so retrieval still gets availability/price
+        q_lower = question.lower()
+        if not any(term in q_lower for term in _DOC_TERMS):
+            search_query = f"{search_query} Stock Availability Price Range INR pack sizes".strip()
+            logger.warning(f"Skip rewrite; expanded query: '{search_query[:70]}...'")
 
-    # If history exists, try to add product context for follow-up questions
+    # If history exists and question is vague, prepend product name so retrieval finds that product's chunks
     if history:
         recent_text = " ".join([h.get("content", "") for h in history[-4:]])
         for product in KNOWN_PRODUCTS:
             if product.lower() in recent_text.lower():
-                # If question is vague (uses "it", "its", "the", etc.), add product name
                 vague_words = ["it", "its", "the", "this", "that", "they", "their"]
                 if any(word in question.lower() for word in vague_words):
-                    search_query = f"{product} {question}"
-                    logger.warning(f"Added product context: '{question}' → '{search_query}'")
+                    search_query = f"{product} {search_query}"
+                    logger.warning(f"Added product context for vague question: '{search_query[:60]}...'")
                 break
     logger.warning(f"TIMING query_expansion: {time.perf_counter() - t0:.3f}s")
 
@@ -238,53 +287,38 @@ def answer_question(
         logger.error(f"Distances: {distances[:10] if len(distances) > 0 else 'none'}")
         logger.error(f"Docs preview: {[d[:50] for d in docs[:3]] if docs else 'none'}")
     
-    # Hard guardrail: if retrieval found nothing, don't call the model (prevents hallucinations).
+    # When no context was retrieved, use a minimal context so we can still answer catalog questions (which products we have, etc.)
+    product_list_str = ", ".join(KNOWN_PRODUCTS)
     if not context:
-        return RagResult(
-            answer=(
-                "I don't have those details in the product documents I'm using. "
-                "Please ask about one of these products: Lays, Kurkure, Cadbury Dairy Milk Silk, "
-                "Maggi, Nescafe Classic, Parle G."
-            ),
-            sources=[],
+        context = (
+            "(No product details were retrieved for this query. "
+            "You may only answer which products we have or list products using the product list below. "
+            "For price, availability, content, or packaging you must say you don't have that information in the product docs.)"
         )
 
-    # Available data fields in the product documents (pseudo schema)
-    AVAILABLE_DATA_FIELDS = (
-        "The product documents typically contain information about:\n"
-        "- Product name and description\n"
-        "- Price and cost information\n"
-        "- Ingredients and composition\n"
-        "- Allergens and dietary information\n"
-        "- Nutritional information\n"
-        "- Flavor profiles and taste\n"
-        "- Packaging details\n"
-        "- Origin or manufacturing details\n"
-        "- Usage instructions or serving suggestions\n"
+    # Document structure (exact format from product doc - use these labels when reading CONTEXT)
+    DOC_STRUCTURE = (
+        "The CONTEXT comes from product docs with this exact structure. Use these labels:\n"
+        "- Stock Availability: 'In Stock' or 'Out of Stock' (this is availability)\n"
+        "- Price Range (INR): pack sizes with rupee amounts, e.g. '30g – ₹10', '55g – ₹20' (₹ is rupees)\n"
+        "- Available Pack Sizes: e.g. 30g, 55g, 90g, 115g\n"
+        "- Ingredients, Nutritional Information (per 100g), Allergen Information\n"
+        "- Shelf Life, Storage Instructions, Brand, Category\n"
     )
 
     system = (
-        "You are Snackbot, a helpful assistant for a one-page snacks website.\n"
-        "CRITICAL RULES - YOU MUST FOLLOW THESE:\n"
-        "- Answer ONLY using the provided CONTEXT below. You have NO access to the internet or any other knowledge.\n"
-        "- Do NOT use outside knowledge. Do NOT guess. Do NOT make up information.\n"
-        f"\nAVAILABLE DATA IN DOCUMENTS:\n{AVAILABLE_DATA_FIELDS}\n"
-        "- IMPORTANT: Cost/price information IS available in the documents. Look carefully through ALL provided chunks for:\n"
-        "  * Price, cost, amount, rupees, Rs, pricing information\n"
-        "  * These may appear in various formats (e.g., 'Rs 50', '50 rupees', 'cost: 50', 'price: 50')\n"
-        "  * Search ALL chunks thoroughly - cost info might be in any chunk related to the product\n"
-        "- Use the CONVERSATION HISTORY to understand follow-up questions and comparisons:\n"
-        "  * 'its price', 'what about allergens?', 'how much?', 'its cost' → refer to the product just discussed in history\n"
-        "  * 'difference between their costs', 'compare both' → use information from ALL products mentioned in CONTEXT\n"
-        "  * ALWAYS check conversation history - if user says 'its' or 'their', look at what product was mentioned before\n"
-        "  * Remember what was discussed earlier in the conversation\n"
-        "- If the CONTEXT does not contain the answer, reply EXACTLY:\n"
-        "  \"I don't have those details in the product documents I'm using.\"\n"
-        "  Then ask 1 short follow-up question to clarify the product.\n"
-        "- For COMPARISON questions: If CONTEXT has info about multiple products, compare them directly using the data provided.\n"
-        "- Keep answers short and focused: 2-5 sentences unless the user asks for more detail.\n"
-        "- If relevant, mention the product name(s) you are referring to.\n"
-        "- NEVER say 'I don't know' or 'I'm not sure' - instead say you don't have those details in the documents."
+        "You are Snackbot, the chatbot for an e-commerce snacks site. Help users with product catalog, availability, price, pack sizes, and other details.\n\n"
+        "OUR PRODUCTS (use this list for catalog questions):\n"
+        f"  {product_list_str}\n\n"
+        f"DOCUMENT STRUCTURE (read CONTEXT using these exact labels):\n{DOC_STRUCTURE}\n"
+        "HOW TO READ CONTEXT (mandatory):\n"
+        "- For AVAILABILITY: look for 'Stock Availability' followed by 'In Stock' or 'Out of Stock'. If you see it in any chunk, you HAVE availability—state it. Never say you don't have it.\n"
+        "- For PRICE: look for 'Price Range (INR)' or lines with '₹' and amounts (e.g. '30g – ₹10', '55g – ₹20'). If you see it in any chunk, you HAVE price—state the range or pack-wise prices. Never say you don't have it.\n"
+        "- For pack sizes: use 'Available Pack Sizes' and 'Price Range (INR)' from CONTEXT.\n"
+        "CRITICAL RULES:\n"
+        "- When the user asks about a SPECIFIC product (e.g. Kurkure, Lays): Say 'Yes, we have [Product].' Then from CONTEXT: state Stock Availability (In Stock/Out of Stock). Then state Price Range (INR) or pack-wise prices (₹) if present. Optionally mention pack sizes. End with 'Would you like to buy it?'\n"
+        "- For 'which products do you have?' list the products above. For 'other than X?' list all except the one(s) mentioned.\n"
+        "- Answer only from CONTEXT using the labels above. Use CONVERSATION HISTORY for follow-ups. Keep answers short; end with a call-to-action when discussing a product."
     )
 
     # Build messages: system + conversation history + current turn (context + question)
@@ -309,7 +343,7 @@ def answer_question(
         model=chat_model,
         messages=messages,
         temperature=0.2,
-        max_tokens=500,  # Cap length for faster response (~375 words max)
+        max_completion_tokens=400,  # Cap length for faster response
     )
     logger.warning(f"TIMING llm_call: {time.perf_counter() - t0:.3f}s")
 
