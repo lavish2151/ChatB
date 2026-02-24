@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 MAX_MESSAGE_LENGTH = 2000
 MAX_HISTORY_ITEMS = 20
 
+# Simple in-memory list to store "request order" submissions (no database for now).
+# In production you would use a database (e.g. SQLite, PostgreSQL).
+ORDER_STORE: list[dict] = []
+
 
 def create_app() -> Flask:
     # Load env from Nx workspace root if present
@@ -67,6 +71,43 @@ def create_app() -> Flask:
             "Would you like to buy it?"
         )
         return Response(text, mimetype="text/plain")
+
+    @app.post("/api/order")
+    def order():
+        """
+        Request order: save name, phone, address and cart items.
+        Returns success. Orders are stored in memory (ORDER_STORE).
+        """
+        data = request.get_json(silent=True) or {}
+        name = (data.get("name") or "").strip()
+        phone = (data.get("phone") or "").strip()
+        address = (data.get("address") or "").strip()
+        items = data.get("items")
+        if not name:
+            return jsonify({"error": "Name is required"}), 400
+        if not phone:
+            return jsonify({"error": "Phone is required"}), 400
+        if not address:
+            return jsonify({"error": "Address is required"}), 400
+        if not isinstance(items, list) or len(items) == 0:
+            return jsonify({"error": "At least one item is required"}), 400
+        order_record = {
+            "name": name,
+            "phone": phone,
+            "address": address,
+            "items": [
+                {
+                    "productId": str(i.get("productId", "")),
+                    "productName": str(i.get("productName", "")),
+                    "quantity": int(i.get("quantity", 1)) if isinstance(i.get("quantity"), (int, float)) else 1,
+                }
+                for i in items[:50]
+                if isinstance(i, dict)
+            ],
+        }
+        ORDER_STORE.append(order_record)
+        logger.warning(f"Order received from {name}: {len(order_record['items'])} item(s)")
+        return jsonify({"success": True, "message": "Order received! We'll contact you soon."})
 
     @app.post("/api/chat")
     def chat():
