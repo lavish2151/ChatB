@@ -1,0 +1,19 @@
+name: Keep Render alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          url="${{ vars.RENDER_APP_URL }}"
+          if [ -z "$url" ]; then
+            echo "RENDER_APP_URL not set."
+            exit 0
+          fi
+          curl -sf --max-time 120 "${url}/health" || true
