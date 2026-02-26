@@ -221,3 +221,107 @@
   background: #f1f5f9;
   border-color: var(--sb-border);
 }
+
+.bot-message-link {
+  color: #2563eb;
+  text-decoration: underline;
+  font-weight: 500;
+}
+.bot-message-link:hover {
+  color: #1d4ed8;
+}
+
+/* Parle G pack picker (3 options + quantity + Add to cart) */
+.parle-g-picker {
+  display: block;
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--sb-border);
+  border-radius: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.parle-g-picker-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sb-muted);
+  margin-bottom: 10px;
+}
+.parle-g-picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+.parle-g-picker-row:last-of-type {
+  border-bottom: none;
+}
+.parle-g-picker-label {
+  font-weight: 500;
+  color: var(--sb-text);
+}
+.parle-g-picker-qty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.parle-g-picker-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--sb-border);
+  background: #fff;
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--sb-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.parle-g-picker-btn:hover {
+  background: #f1f5f9;
+}
+.parle-g-picker-num {
+  min-width: 24px;
+  text-align: center;
+  font-weight: 600;
+}
+.parle-g-picker-submit {
+  margin-top: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--sb-accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.parle-g-picker-submit:hover:not(:disabled) {
+  background: #334155;
+}
+.parle-g-picker-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.parle-g-picker-confirm {
+  margin-top: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: #fff;
+  color: var(--sb-accent);
+  border: 2px solid var(--sb-accent);
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.parle-g-picker-confirm:hover {
+  background: #f1f5f9;
+}

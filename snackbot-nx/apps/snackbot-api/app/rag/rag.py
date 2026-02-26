@@ -16,6 +16,8 @@ class RagResult:
     answer: str
     sources: list[dict]
     answer_lines: tuple[str, ...] = field(default_factory=tuple)
+    intent: str | None = None
+    product: str | None = None
 
 
 # Product names for query rewriting context
@@ -110,6 +112,58 @@ def _normalize_product_name(text: str) -> str | None:
     return None
 
 
+# When user confirms Parle G purchase: short answer + intent for frontend pack picker
+PARLE_G_PURCHASE_ANSWER = "Please choose a pack:"
+PARLE_G_PURCHASE_LINKS = (
+    "[56g](/products/parle-g-56g)\n"
+    "[200g](/products/parle-g-200g)\n"
+    "[800g](/products/parle-g-800g)"
+)
+# Product names that get purchase links; others get "unavailable" (scalable for future products)
+PURCHASE_ENABLED_PRODUCTS = {"Parle G", "Parle-G"}
+
+
+def _try_handle_yes_to_buy(question: str, history: list[dict[str, str]] | None) -> RagResult | None:
+    """
+    If the user is saying Yes to the purchase question, return the correct response
+    (Parle G links or "unavailable") without calling RAG/LLM. This avoids the LLM
+    answering from retrieved context (e.g. "Lays is out of stock") instead of the rule.
+    """
+    if not history or len(history) < 2:
+        return None
+    q = question.strip().lower()
+    # Short affirmative replies that mean "yes I want to buy"
+    affirmatives = (
+        "yes", "yeah", "yep", "sure", "ok", "okay", "i want to buy", "i'll take it",
+        "want to buy", "please", "i want it", "give me", "i'll buy", "buy it",
+    )
+    is_affirmative = q in affirmatives or any(a in q for a in ("yes", "yeah", "sure", "ok", "buy", "i want"))
+    if not is_affirmative or len(q) > 80:
+        return None
+    # Prefer last assistant message (they just asked "Would you like to buy...?")
+    last_assistant = None
+    for h in reversed(history):
+        role = (h.get("role") or "").strip().lower()
+        if role == "assistant":
+            last_assistant = (h.get("content") or "").strip()
+            break
+    if not last_assistant or "would you like to buy" not in last_assistant.lower():
+        return None
+    # Extract product from "Yes, we have X." at the start of that message
+    match = re.search(r"(?i)Yes,?\s*we have\s+([^.\n]+)\.", last_assistant)
+    product_raw = match.group(1).strip() if match else ""
+    product = _normalize_product_name(product_raw) if product_raw else _normalize_product_name(last_assistant)
+    if not product:
+        return None
+    if product == "Parle G":
+        answer = PARLE_G_PURCHASE_ANSWER + "\n\n" + PARLE_G_PURCHASE_LINKS
+        lines = tuple(s.strip() or "\u00A0" for s in answer.split("\n"))
+        return RagResult(answer=answer, sources=[], answer_lines=lines, intent="SHOW_PACK_PICKER", product="parle-g")
+    answer = "Purchase options for this product are currently unavailable."
+    lines = tuple(s.strip() or "\u00A0" for s in answer.split("\n"))
+    return RagResult(answer=answer, sources=[], answer_lines=lines, intent=None, product=None)
+
+
 def _clean_product_response(text: str) -> str:
     """
     Option 3: If LLM returns one messy line, clean it so each section/bullet is on its own line.
@@ -125,6 +179,7 @@ def _clean_product_response(text: str) -> str:
     t = re.sub(r"\s+-\s+", "\n- ", t)
     # Closing line
     t = re.sub(r"\s+Would you like to buy it\?", "\n\nWould you like to buy it?", t, flags=re.IGNORECASE)
+    t = re.sub(r"\s+Would you like to buy this product\?\s*\(Yes/No\)", "\n\nWould you like to buy this product? (Yes/No)", t, flags=re.IGNORECASE)
     # Collapse more than 2 newlines to 2
     t = re.sub(r"\n{3,}", "\n\n", t)
     return t.strip()
@@ -210,6 +265,12 @@ def answer_question(
     use_query_rewrite: bool = True,
 ) -> RagResult:
     t_rag_start = time.perf_counter()
+    # Handle "Yes" to buy before RAG: return Parle G links or "unavailable" (no retrieval/LLM)
+    yes_result = _try_handle_yes_to_buy(question, history)
+    if yes_result is not None:
+        logger.warning("Handled 'Yes to buy' without RAG")
+        return yes_result
+
     client = OpenAI(api_key=openai_api_key)
 
     # Step 1: Normalize product names (lays -> Lays), then optionally LLM rewrite (skip when query has doc terms or is short product-only)
@@ -337,9 +398,16 @@ def answer_question(
         "- For PRICE: look for 'Price Range (INR)' or lines with '₹' and amounts (e.g. '30g – ₹10', '55g – ₹20'). If you see it in any chunk, you HAVE price—state the range or pack-wise prices. Never say you don't have it.\n"
         "- For pack sizes: use 'Available Pack Sizes' and 'Price Range (INR)' from CONTEXT.\n"
         "CRITICAL RULES:\n"
-        "- When the user asks about a SPECIFIC product (e.g. Kurkure, Lays): Say 'Yes, we have [Product].' Then from CONTEXT: state Stock Availability (In Stock/Out of Stock). Then state Price Range (INR) or pack-wise prices (₹) if present. Optionally mention pack sizes. End with 'Would you like to buy it?'\n"
+        "- When the user asks about a SPECIFIC product (e.g. Kurkure, Lays): Say 'Yes, we have [Product].' Then from CONTEXT: state Stock Availability (In Stock/Out of Stock). Then state Price Range (INR) or pack-wise prices (₹) if present. Optionally mention pack sizes. You MUST end with exactly: 'Would you like to buy this product? (Yes/No)'\n"
         "- For 'which products do you have?' list the products above. For 'other than X?' list all except the one(s) mentioned.\n"
-        "- Answer only from CONTEXT using the labels above. Use CONVERSATION HISTORY for follow-ups. Keep answers short; end with a call-to-action when discussing a product.\n\n"
+        "- Answer only from CONTEXT using the labels above. Use CONVERSATION HISTORY for follow-ups. Keep answers short; end with the purchase question for product replies.\n\n"
+        "WHEN USER SAYS YES TO BUYING (e.g. 'yes', 'yeah', 'sure', 'I want to buy'):\n"
+        "- If the product they were asking about is Parle G (or Parle-G): Reply with exactly these clickable links (one per line):\n"
+        "Choose a pack size:\n"
+        "[56g](/products/parle-g-56g)\n"
+        "[200g](/products/parle-g-200g)\n"
+        "[800g](/products/parle-g-800g)\n"
+        "- If the product is ANY other product (Lays, Kurkure, Maggi, etc.): Reply with exactly: 'Purchase options for this product are currently unavailable.'\n\n"
         "OUTPUT FORMAT (strict): Return product replies in this exact structure. Do not combine lines. Each bullet must be on a new line.\n"
         "Yes, we have {Product Name}.\n\n"
         "Availability: {In Stock or Out of Stock}\n\n"
@@ -349,8 +417,8 @@ def answer_question(
         "Pack sizes:\n"
         "- {Size}\n"
         "(one line per size)\n\n"
-        "Would you like to buy it?\n"
-        "Use plain text only (no ** or markdown). Do not combine lines."
+        "Would you like to buy this product? (Yes/No)\n"
+        "Use plain text. For Parle G purchase links use the format [text](/products/parle-g-XXg) as shown above."
     )
 
     # Build messages: system + conversation history + current turn (context + question)

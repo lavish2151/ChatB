@@ -11,17 +11,22 @@ const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState([]);
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
 
-  const addToCart = (product) => {
+  const openCartDrawer = () => setCartDrawerOpen(true);
+  const closeCartDrawer = () => setCartDrawerOpen(false);
+
+  const addToCart = (product, quantity = 1) => {
     const { id: productId, name: productName } = product;
+    const qty = Math.max(1, Math.min(999, Number(quantity) || 1));
     setCart((prev) => {
       const existing = prev.find((item) => item.productId === productId);
       if (existing) {
         return prev.map((item) =>
-          item.productId === productId ? { ...item, quantity: item.quantity + 1 } : item
+          item.productId === productId ? { ...item, quantity: item.quantity + qty } : item
         );
       }
-      return [...prev, { productId, productName, quantity: 1 }];
+      return [...prev, { productId, productName, quantity: qty }];
     });
   };
 
@@ -50,6 +55,10 @@ export function CartProvider({ children }) {
     removeFromCart,
     updateQuantity,
     clearCart,
+    cartDrawerOpen,
+    setCartDrawerOpen,
+    openCartDrawer,
+    closeCartDrawer,
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

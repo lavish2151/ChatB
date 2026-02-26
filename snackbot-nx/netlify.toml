@@ -1,0 +1,11 @@
+# Frontend (snackbot-web) deploy. Use BUILD_FOR_NETLIFY=1 when building.
+[build]
+  base    = "/"
+  command = "npm ci && (cd apps/snackbot-web && npm ci) && BUILD_FOR_NETLIFY=1 npx nx build snackbot-web"
+  publish = "apps/snackbot-web/dist"
+
+# SPA: all routes (e.g. /products/parle-g-56g) serve index.html so React Router works
+[[redirects]]
+  from    = "/*"
+  to      = "/index.html"
+  status  = 200

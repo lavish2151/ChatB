@@ -149,7 +149,12 @@ def create_app() -> Flask:
             t_request_elapsed = time.perf_counter() - t_request_start
             logger.warning(f"TIMING request_total: {t_request_elapsed:.3f}s")
             logger.warning(f"✅ Answer length: {len(res.answer)} chars")
-            return jsonify({"answer": res.answer, "answer_lines": list(res.answer_lines)})
+            payload = {"answer": res.answer, "answer_lines": list(res.answer_lines)}
+            if getattr(res, "intent", None) is not None:
+                payload["intent"] = res.intent
+            if getattr(res, "product", None) is not None:
+                payload["product"] = res.product
+            return jsonify(payload)
         except Exception as e:
             logger.exception("❌ Chat request failed")
             return jsonify({"error": "Something went wrong. Please try again."}), 500
