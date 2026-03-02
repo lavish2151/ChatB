@@ -20,9 +20,11 @@
    - **Build Command**: 
      ```bash
      curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs
-     cd apps/snackbot-web && npm install && npm run build && cd ../..
+     npm ci
+     npm run build:web
      pip install -r apps/snackbot-api/requirements.txt
      ```
+     (This builds the latest React app on every deploy, same as running `npm run build:web` locally.)
    - **Start Command**:
      ```bash
      cd apps/snackbot-api && gunicorn -w 4 -b 0.0.0.0:$PORT wsgi:app
@@ -107,6 +109,7 @@ If you prefer, you can use the `render.yaml` file:
 | App crashes on start | Check logs. Likely missing env vars (`OPENAI_API_KEY`, `GDOCS_PUBLISHED_URLS`) |
 | Chat doesn't work | Ensure you've ingested documents (run `python -m scripts.ingest_gdocs` in Render shell) |
 | Images not showing | Ensure `USE_MY_IMAGES = true` in `App.jsx` and images are in `public/images/` |
+| Site shows old UI after you pushed new code | Push your changes, then in Render dashboard go to your service → **Manual Deploy** → **Deploy latest commit**. The build runs `npm run build:web`, so each deploy rebuilds the React app. If it still shows old code, check the build logs to ensure the "build:web" step succeeded. |
 
 ---
 

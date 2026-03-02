@@ -8,7 +8,8 @@
     "build:web": "nx build snackbot-web",
     "serve:web": "nx serve snackbot-web",
     "dev": "nx run-many -t serve -p snackbot-web,snackbot-api --parallel",
-    "start": "nx build snackbot-web && nx serve snackbot-api"
+    "start": "nx build snackbot-web && nx serve snackbot-api",
+    "refresh:backend-build": "nx build snackbot-web"
   },
   "private": true,
   "devDependencies": {

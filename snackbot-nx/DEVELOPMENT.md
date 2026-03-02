@@ -1,9 +1,23 @@
 # Development
 
-## Why "backend only" doesn't show updated React
+## Why backend localhost shows old code
 
-- **`nx serve snackbot-api`** (or `npm run serve:api`) runs only the Flask API. If you open the app in the browser, Flask serves the **pre-built** frontend from `apps/snackbot-api/static/site`. That folder is updated only when you run **`nx build snackbot-web`**. So you see old React code until you rebuild.
-- **`nx serve snackbot-web`** runs the Vite dev server with **hot reload**. You always see the latest React code.
+- **Frontend localhost** (e.g. http://localhost:3000): Vite serves the app from **source** with hot reload → you always see the **new** code.
+- **Backend localhost** (e.g. http://localhost:5000): Flask serves the app from **`apps/snackbot-api/static/site`**. That folder is a **copy** of the last build. It only changes when you run a build.
+
+So if you changed React code and only run `serve:api` + `serve:web`, the **backend URL will still show old code** until you refresh the build.
+
+### To see new code on the backend URL (localhost:5000)
+
+From the repo root run:
+
+```bash
+npm run build:web
+```
+
+(or `nx build snackbot-web`). This writes the latest React app into `apps/snackbot-api/static/site`. Then reload http://localhost:5000 (and do a hard refresh if needed: Ctrl+Shift+R). You can run `npm run refresh:backend-build` as a shortcut for the same build.
+
+- **`nx serve snackbot-web`** runs the Vite dev server with **hot reload** — use the **frontend** URL to develop without rebuilding.
 
 ## Backend URL vs frontend URL
 
