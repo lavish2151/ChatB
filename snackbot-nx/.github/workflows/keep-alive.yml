@@ -3,12 +3,16 @@
 #
 # Setup: In GitHub repo go to Settings → Secrets and variables → Actions → Variables.
 #        Add variable: RENDER_APP_URL = https://your-app-name.onrender.com (no trailing slash)
+#        Or use Secrets: RENDER_APP_URL (same value) — then the URL won't appear in logs.
+#
+# Note: Scheduled runs only work on the default branch. If this repo is a fork,
+#       scheduled workflows are disabled by GitHub; use workflow_dispatch to run manually.
 
 name: Keep Render alive
 
 on:
   schedule:
-    # Every 10 minutes
+    # Every 10 minutes (GitHub may delay by a few minutes)
     - cron: '*/10 * * * *'
   workflow_dispatch:
     # Allow manual run from Actions tab
@@ -16,12 +20,30 @@ on:
 jobs:
   ping:
     runs-on: ubuntu-latest
+    env:
+      # Prefer Variables (visible in logs); fallback to Secrets (masked)
+      RENDER_APP_URL: ${{ vars.RENDER_APP_URL || secrets.RENDER_APP_URL }}
     steps:
-      - name: Ping health endpoint
+      - name: Ping Render to keep awake
         run: |
-          url="${{ vars.RENDER_APP_URL }}"
-          if [ -z "$url" ]; then
-            echo "RENDER_APP_URL not set. Add it in repo Settings → Secrets and variables → Actions → Variables."
+          if [ -z "$RENDER_APP_URL" ]; then
+            echo "::warning:: RENDER_APP_URL is not set. Add it in repo Settings → Secrets and variables → Actions → Variables (or Secrets)."
             exit 0
           fi
-          curl -sf --max-time 120 "${url}/health" || true
+          echo "Pinging Render app (every 10 min keeps free tier awake)..."
+          # Strip trailing slash
+          base="${RENDER_APP_URL%/}"
+          # Cold start can take 30–60s; retry a few times with long timeout
+          for attempt in 1 2 3; do
+            if curl -sf --max-time 90 "${base}/health" 2>/dev/null; then
+              echo "Health check OK."
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Attempt $attempt failed or slow (cold start?). Retrying in 15s..."
+              sleep 15
+            fi
+          done
+          # Also hit root so Render definitely sees traffic
+          curl -sS --max-time 90 "${base}/" -o /dev/null || true
+          echo "Keep-alive ping done."
