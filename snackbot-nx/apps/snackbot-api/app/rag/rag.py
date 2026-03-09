@@ -28,6 +28,15 @@ KNOWN_PRODUCTS = [
     "Maggi",
     "Nescafe Classic",
     "Parle G",
+    "KitKat",
+    "Good Day",
+    "Yippee Noodles",
+    "Knorr Soupy Noodles",
+    "Marie Gold",
+    "Bru",
+    "Davidoff Coffee",
+    "Uncle Chips",
+    "Balaji Wafers",
 ]
 
 # In-memory cache for rewritten queries to avoid repeat LLM calls. Key = (question_lower, context_key), max 150.
@@ -43,6 +52,9 @@ _DOC_TERMS = (
 # Product name aliases for flexible matching (shortened/case-insensitive names users might use)
 PRODUCT_ALIASES = {
     "lays": "Lays",
+    "lay's": "Lays",
+    "lay's potato chips": "Lays",
+    "lays potato chips": "Lays",
     "kurkure": "Kurkure",
     "maggi": "Maggi",
     "parle g": "Parle G",
@@ -55,6 +67,24 @@ PRODUCT_ALIASES = {
     "nescafe classic": "Nescafe Classic",
     "classic": "Nescafe Classic",
     "maggi noodles": "Maggi",
+    "kitkat": "KitKat",
+    "kit kat": "KitKat",
+    "good day": "Good Day",
+    "goodday": "Good Day",
+    "yippee": "Yippee Noodles",
+    "yippee noodles": "Yippee Noodles",
+    "knorr": "Knorr Soupy Noodles",
+    "knorr soupy noodles": "Knorr Soupy Noodles",
+    "soupy noodles": "Knorr Soupy Noodles",
+    "marie gold": "Marie Gold",
+    "marie": "Marie Gold",
+    "bru": "Bru",
+    "davidoff": "Davidoff Coffee",
+    "davidoff coffee": "Davidoff Coffee",
+    "uncle chips": "Uncle Chips",
+    "uncle": "Uncle Chips",
+    "balaji": "Balaji Wafers",
+    "balaji wafers": "Balaji Wafers",
 }
 
 
@@ -98,29 +128,141 @@ def _normalize_product_name(text: str) -> str | None:
     Returns the full product name if found, None otherwise.
     """
     text_lower = text.lower().strip()
-    
+    # Normalize apostrophes so "lay's" matches "lays"
+    text_normalized = text_lower.replace("'", "")
+
     # Check exact match first
     for product in KNOWN_PRODUCTS:
         if product.lower() in text_lower or text_lower in product.lower():
             return product
-    
-    # Check aliases
+        if product.lower() in text_normalized or text_normalized in product.lower():
+            return product
+
+    # Check aliases (also try normalized text for "lay's" -> "lays")
     for alias, product in PRODUCT_ALIASES.items():
         if alias in text_lower:
             return product
-    
+        if alias.replace("'", "") in text_normalized:
+            return product
+
     return None
 
 
-# When user confirms Parle G purchase: short answer + intent for frontend pack picker
-PARLE_G_PURCHASE_ANSWER = "Please choose a pack:"
-PARLE_G_PURCHASE_LINKS = (
-    "[56g](/products/parle-g-56g)\n"
-    "[200g](/products/parle-g-200g)\n"
-    "[800g](/products/parle-g-800g)"
-)
-# Product names that get purchase links; others get "unavailable" (scalable for future products)
-PURCHASE_ENABLED_PRODUCTS = {"Parle G", "Parle-G"}
+# When user confirms purchase: short answer + intent for frontend pack picker.
+PURCHASE_PROMPT_ANSWER = "Please choose a pack:"
+
+# Map canonical product name -> slug + pack links.
+# Slug must match frontend PRODUCT_CONFIG keys; ids must match product-detail route slugs.
+PURCHASE_PRODUCT_CONFIG: dict[str, dict] = {
+    "Parle G": {
+        "slug": "parle-g",
+        "packs": [
+            ("56g", "parle-g-56g"),
+            ("200g", "parle-g-200g"),
+            ("800g", "parle-g-800g"),
+        ],
+    },
+    "Kurkure": {
+        "slug": "kurkure",
+        "packs": [
+            ("30g", "kurkure-30g"),
+            ("55g", "kurkure-55g"),
+            ("90g", "kurkure-90g"),
+            ("115g", "kurkure-115g"),
+        ],
+    },
+    "Lays": {
+        "slug": "lays",
+        "packs": [
+            ("30g", "lays-30g"),
+            ("52g", "lays-52g"),
+            ("90g", "lays-90g"),
+        ],
+    },
+    "Maggi": {
+        "slug": "maggi",
+        "packs": [
+            ("70g", "maggi-70g"),
+            ("140g", "maggi-140g"),
+        ],
+    },
+    "Nescafe Classic": {
+        "slug": "nescafe-classic",
+        "packs": [
+            ("50g", "nescafe-classic-50g"),
+            ("100g", "nescafe-classic-100g"),
+        ],
+    },
+    "KitKat": {
+        "slug": "kitkat",
+        "packs": [
+            ("20g", "kitkat-20g"),
+            ("45g", "kitkat-45g"),
+            ("80g", "kitkat-80g"),
+        ],
+    },
+    "Good Day": {
+        "slug": "good-day",
+        "packs": [
+            ("75g", "good-day-75g"),
+            ("150g", "good-day-150g"),
+            ("300g", "good-day-300g"),
+        ],
+    },
+    "Yippee Noodles": {
+        "slug": "yippee-noodles",
+        "packs": [
+            ("70g", "yippee-noodles-70g"),
+            ("140g", "yippee-noodles-140g"),
+        ],
+    },
+    "Knorr Soupy Noodles": {
+        "slug": "knorr-soupy-noodles",
+        "packs": [
+            ("70g", "knorr-soupy-noodles-70g"),
+            ("140g", "knorr-soupy-noodles-140g"),
+        ],
+    },
+    "Marie Gold": {
+        "slug": "marie-gold",
+        "packs": [
+            ("75g", "marie-gold-75g"),
+            ("150g", "marie-gold-150g"),
+            ("300g", "marie-gold-300g"),
+        ],
+    },
+    "Bru": {
+        "slug": "bru",
+        "packs": [
+            ("50g", "bru-50g"),
+            ("100g", "bru-100g"),
+            ("200g", "bru-200g"),
+        ],
+    },
+    "Davidoff Coffee": {
+        "slug": "davidoff-coffee",
+        "packs": [
+            ("50g", "davidoff-coffee-50g"),
+            ("100g", "davidoff-coffee-100g"),
+        ],
+    },
+    "Uncle Chips": {
+        "slug": "uncle-chips",
+        "packs": [
+            ("28g", "uncle-chips-28g"),
+            ("52g", "uncle-chips-52g"),
+            ("90g", "uncle-chips-90g"),
+        ],
+    },
+    "Balaji Wafers": {
+        "slug": "balaji-wafers",
+        "packs": [
+            ("28g", "balaji-wafers-28g"),
+            ("52g", "balaji-wafers-52g"),
+            ("90g", "balaji-wafers-90g"),
+        ],
+    },
+}
 
 
 def _try_handle_yes_to_buy(question: str, history: list[dict[str, str]] | None) -> RagResult | None:
@@ -155,13 +297,40 @@ def _try_handle_yes_to_buy(question: str, history: list[dict[str, str]] | None) 
     product = _normalize_product_name(product_raw) if product_raw else _normalize_product_name(last_assistant)
     if not product:
         return None
-    if product == "Parle G":
-        answer = PARLE_G_PURCHASE_ANSWER + "\n\n" + PARLE_G_PURCHASE_LINKS
+
+    # Find purchase config using a case-insensitive, fuzzy match so slight wording
+    # differences like "Lays potato chips" still map to "Lays".
+    config = None
+    config_slug = None
+    product_lower = product.lower()
+    for name, cfg in PURCHASE_PRODUCT_CONFIG.items():
+        name_lower = name.lower()
+        if name_lower == product_lower or name_lower in product_lower or product_lower in name_lower:
+            config = cfg
+            config_slug = cfg.get("slug")
+            break
+
+    if not config:
+        # Product mentioned but we don't have purchase flows configured for it yet.
+        answer = "Purchase options for this product are currently unavailable."
         lines = tuple(s.strip() or "\u00A0" for s in answer.split("\n"))
-        return RagResult(answer=answer, sources=[], answer_lines=lines, intent="SHOW_PACK_PICKER", product="parle-g")
-    answer = "Purchase options for this product are currently unavailable."
+        return RagResult(answer=answer, sources=[], answer_lines=lines, intent=None, product=None)
+
+    # Build markdown links for all configured packs so frontend can render both links and pack picker.
+    link_lines = [
+        f"[{label}](/products/{pack_id})"
+        for (label, pack_id) in config.get("packs", [])
+    ]
+    links_block = "\n".join(link_lines)
+    answer = PURCHASE_PROMPT_ANSWER + ("\n\n" + links_block if links_block else "")
     lines = tuple(s.strip() or "\u00A0" for s in answer.split("\n"))
-    return RagResult(answer=answer, sources=[], answer_lines=lines, intent=None, product=None)
+    return RagResult(
+        answer=answer,
+        sources=[],
+        answer_lines=lines,
+        intent="SHOW_PACK_PICKER",
+        product=config_slug,
+    )
 
 
 def _clean_product_response(text: str) -> str:

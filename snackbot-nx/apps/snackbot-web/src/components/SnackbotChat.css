@@ -285,6 +285,17 @@
 .parle-g-picker-btn:hover {
   background: #f1f5f9;
 }
+.parle-g-picker-btn--out,
+.parle-g-picker-btn:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+}
+.parle-g-picker-btn--out:hover,
+.parle-g-picker-btn:disabled:hover {
+  background: #f1f5f9;
+}
 .parle-g-picker-num {
   min-width: 24px;
   text-align: center;
@@ -324,4 +335,22 @@
 }
 .parle-g-picker-confirm:hover {
   background: #f1f5f9;
+}
+
+.parle-g-picker-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+}
+
+.parle-g-picker-confirm:disabled:hover {
+  background: #fff;
+}
+
+.parle-g-picker-footer {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 500;
 }

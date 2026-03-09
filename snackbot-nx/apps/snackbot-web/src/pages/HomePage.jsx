@@ -8,6 +8,15 @@ const PRODUCTS = [
   { name: 'Maggi', id: 'maggi', tagline: 'Instant noodles' },
   { name: 'Nescafe Classic', id: 'nescafe-classic', tagline: 'Classic instant coffee' },
   { name: 'Parle G', id: 'parle-g', tagline: 'Classic glucose biscuit' },
+  { name: 'KitKat', id: 'kitkat', tagline: 'Chocolate wafer fingers' },
+  { name: 'Good Day', id: 'good-day', tagline: 'Butter cookies' },
+  { name: 'Yippee Noodles', id: 'yippee-noodles', tagline: 'Instant noodles' },
+  { name: 'Knorr Soupy Noodles', id: 'knorr-soupy-noodles', tagline: 'Soupy instant noodles' },
+  { name: 'Marie Gold', id: 'marie-gold', tagline: 'Tea-time biscuit' },
+  { name: 'Bru', id: 'bru', tagline: 'Instant coffee' },
+  { name: 'Davidoff Coffee', id: 'davidoff-coffee', tagline: 'Premium instant coffee' },
+  { name: 'Uncle Chips', id: 'uncle-chips', tagline: 'Potato chips' },
+  { name: 'Balaji Wafers', id: 'balaji-wafers', tagline: 'Crispy wafers' },
 ];
 
 const USE_MY_IMAGES = true;

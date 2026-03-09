@@ -18,6 +18,10 @@ export default function PackPicker({ product, onAdded }) {
   if (!product || packKeys.length === 0) return null;
 
   const changeQty = (packKey, delta) => {
+    const pack = packs[packKey];
+    if (pack && pack.available === false) {
+      return; // do not allow quantity changes for out-of-stock packs
+    }
     setQuantities((prev) => ({
       ...prev,
       [packKey]: Math.max(0, Math.min(99, (prev[packKey] || 0) + delta)),
@@ -30,6 +34,9 @@ export default function PackPicker({ product, onAdded }) {
       const qty = quantities[key] || 0;
       if (qty > 0) {
         const pack = packs[key];
+        if (!pack || pack.available === false) {
+          return; // skip out-of-stock packs
+        }
         addToCart({ id: pack.id, name: pack.name }, qty);
         added.push(`${qty} × ${key}`);
       }
@@ -39,31 +46,66 @@ export default function PackPicker({ product, onAdded }) {
     }
   };
 
-  const hasSelection = packKeys.some((k) => (quantities[k] || 0) > 0);
+  const hasSelection = packKeys.some((k) => {
+    const pack = packs[k];
+    return pack && pack.available !== false && (quantities[k] || 0) > 0;
+  });
+
+  const hasOutOfStock = packKeys.some((k) => {
+    const pack = packs[k];
+    return pack && pack.available === false;
+  });
 
   return (
     <div className="parle-g-picker pack-picker">
       <div className="parle-g-picker-title">Choose quantity</div>
-      {packKeys.map((packKey) => (
-        <div key={packKey} className="parle-g-picker-row">
-          <span className="parle-g-picker-label">{packKey}</span>
-          <div className="parle-g-picker-qty">
-            <button type="button" className="parle-g-picker-btn" onClick={() => changeQty(packKey, -1)} aria-label={`Less ${packKey}`}>
-              −
-            </button>
-            <span className="parle-g-picker-num">{quantities[packKey] || 0}</span>
-            <button type="button" className="parle-g-picker-btn" onClick={() => changeQty(packKey, 1)} aria-label={`More ${packKey}`}>
-              +
-            </button>
+      {packKeys.map((packKey) => {
+        const pack = packs[packKey];
+        const outOfStock = pack && pack.available === false;
+        return (
+          <div key={packKey} className="parle-g-picker-row">
+            <span className="parle-g-picker-label">
+              {packKey}
+              {outOfStock && <span className="parle-g-picker-out"> (Out of stock)</span>}
+            </span>
+            <div className="parle-g-picker-qty">
+              <button
+                type="button"
+                className={`parle-g-picker-btn ${outOfStock ? 'parle-g-picker-btn--out' : ''}`}
+                onClick={() => changeQty(packKey, -1)}
+                aria-label={`Less ${packKey}`}
+                disabled={outOfStock}
+              >
+                −
+              </button>
+              <span className="parle-g-picker-num">{quantities[packKey] || 0}</span>
+              <button
+                type="button"
+                className={`parle-g-picker-btn ${outOfStock ? 'parle-g-picker-btn--out' : ''}`}
+                onClick={() => changeQty(packKey, 1)}
+                aria-label={`More ${packKey}`}
+                disabled={outOfStock}
+              >
+                +
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
       <button type="button" className="parle-g-picker-submit" onClick={handleAddToCart} disabled={!hasSelection}>
         Add to cart
       </button>
-      <button type="button" className="parle-g-picker-confirm" onClick={openCartDrawer}>
+      <button
+        type="button"
+        className="parle-g-picker-confirm"
+        onClick={openCartDrawer}
+        disabled={!hasSelection}
+      >
         Confirm order
       </button>
+      {hasOutOfStock && (
+        <p className="parle-g-picker-footer">Item out of stock</p>
+      )}
     </div>
   );
 }
